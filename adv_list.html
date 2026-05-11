@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>避雷物品管理系统</title>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        background: #f7f7f7;
+    }
+
+    textarea, input[type="text"] {
+        width: 90%;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-size: 16px;
+    }
+
+    button {
+        padding: 8px 14px;
+        margin-right: 10px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .section {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    }
+
+    h3 {
+        margin-top: 0;
+    }
+
+    .result {
+        margin-top: 20px;
+        line-height: 1.8;
+    }
+
+    .warning {
+        color: red;
+        font-weight: bold;
+    }
+
+    .safe {
+        color: green;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>⚡ 避雷物品管理系统</h2>
+
+<!-- 查询区 -->
+<div class="section">
+    <h3>🔍 批量查询（每行一个物品）</h3>
+    <textarea id="searchInput" placeholder="例如：
+电动眼罩
+涂液
+虾"></textarea><br>
+    <button onclick="batchCheck()">查询</button>
+    <button onclick="clearSearch()">清空</button>
+</div>
+
+<!-- 添加区 -->
+<div class="section">
+    <h3>➕ 添加新避雷物品</h3>
+    <input id="newItem" placeholder="物品名称（如：某牌面膜）"><br><br>
+    <input id="newReason" placeholder="避雷原因（如：过敏严重）"><br><br>
+    <button onclick="addItem()">添加</button>
+</div>
+
+<div id="result" class="result"></div>
+
+<script>
+let blackList = {
+    "没带复方的黄柏涂液": "黏糊糊的，有点恶心",
+    "电动眼罩": "勒眼睛，效率差",
+    "廉价口红": "所有口红都不建议买",
+    "单独买的蚊香盘": "一点没用，暂时别扔，收纳东西",
+    "燃烧的蚊香": "容易缺氧",
+    "芝麻糊": "难吃，不喜欢",
+    "网购的牙刷": "大部分质量不好",
+    "瑞士糖": "粘牙",
+    "网购的毛巾": "大部分掉毛",
+    "化妆品": "低精力不适合，不会化、没精力化，彻底放弃化妆",
+    "网购的云南白药牙膏": "容易买到假货，拿去刷马桶了",
+    "纸质书籍（尤其是工具书）": "眼睛不好读不下去",
+    "冲锋衣": "背后没有开口透气的不能要",
+    "自热暖足贴": "硌脚",
+    "各种收纳箱收纳盒": "带不走",
+    "抗生素类药物": "私自吃可能吃出超级细菌",
+    "泡脚包": "细菌超标",
+    "冲泡类茶饮": "细菌超标",
+    "卷纸": "高频用纸场所在厕所，卷纸容易沾染细菌",
+    "七度空间的卫生巾": "不建议买",
+    "发热眼罩": "侧睡烫眼睛",
+    "不知名牌子的抽纸": "认准清风和维达可以买，其他不要",
+    "折叠矮凳": "太重，不好用",
+    "手机支架": "承重性不好，没有拍照需求不要买",
+    "洗脸巾": "感觉不太好用，并且贵",
+    "N95口罩": "太闷了，适用性很差",
+    "桌子": "不要在网路上买桌子，会坏",
+    "一次性抹布": "不好用",
+    "改衣服的链子": "精力低下，没有精力弄",
+    "特步的运动裤": "丑得很",
+    "卷发棒": "不会用，手残",
+    "电动直发梳": "垃圾产品",
+    "入耳式耳机": "进耳朵，痛",
+    "西服": "钱太少，体型也有问题，买不到好的",
+    "各种发饰": "没有精力弄，最好是剪短发",
+    "各种手饰": "感官过载，受不了，并且有可能买到有毒产品",
+    "枣糕": "太甜了，不喜欢",
+    "皮带": "感官过载，不舒服",
+    "葡萄糖": "无法判断自己是不是缺糖，不敢吃",
+    "奥司他韦": "无法判断自己是不是甲流，不敢吃",
+    "薄羽绒服": "体型不合适，容易买到太短的",
+    "虾": "我不会处理",
+    "沐浴露": "携带不方便，容易假滑，容易过敏",
+    "袋装漱口水": "臭臭的",
+    "麂皮绒卫衣": "非常容易臭",
+    "裙裤不合适": "容易搞湿",
+    "短款上衣不合适": "穿不惯"
+};
+
+/* =========================
+   添加新避雷物品
+   ========================= */
+function addItem() {
+    const item = document.getElementById("newItem").value.trim();
+    const reason = document.getElementById("newReason").value.trim();
+    const resultDiv = document.getElementById("result");
+
+    if (!item || !reason) {
+        alert("物品名称和避雷原因都不能为空！");
+        return;
+    }
+
+    if (blackList[item]) {
+        alert(`⚠️ 「${item}」已经存在于避雷清单中`);
+        return;
+    }
+
+    blackList[item] = reason;
+
+    resultDiv.innerHTML = `
+        <div class="safe">
+            ✅ 已成功添加避雷物品：<b>${item}</b><br>
+            原因：${reason}
+        </div>
+    `;
+
+    document.getElementById("newItem").value = "";
+    document.getElementById("newReason").value = "";
+}
+
+/* =========================
+   批量 + 模糊 + 多重查询（按行）
+   ========================= */
+function batchCheck() {
+    const input = document.getElementById("searchInput").value;
+    const resultDiv = document.getElementById("result");
+
+    if (!input.trim()) {
+        resultDiv.innerHTML = "<span class='warning'>⚠️ 请输入至少一个物品</span>";
+        return;
+    }
+
+    // ✅ 按换行拆分（核心改动）
+    const keywords = input
+        .split(/\n/)
+        .map(k => k.trim())
+        .filter(Boolean);
+
+    let output = "";
+
+    keywords.forEach(keyword => {
+        let matchedCount = 0;
+
+        output += `<hr><b>🔍 查询关键词：</b>${keyword}<br>`;
+
+        for (let item in blackList) {
+            if (
+                item.includes(keyword) ||
+                keyword.includes(item)
+            ) {
+                output += `<div class="warning">
+                    ❌ ${item}：避雷（${blackList[item]}）
+                </div>`;
+                matchedCount++;
+            }
+        }
+
+        if (matchedCount === 0) {
+            output += `<div class="safe">✅ 未找到相关避雷物品</div>`;
+        }
+    });
+
+    resultDiv.innerHTML = output;
+}
+
+function clearSearch() {
+    document.getElementById("searchInput").value = "";
+    document.getElementById("result").innerHTML = "";
+}
+</script>
+
+</body>
+</html>
