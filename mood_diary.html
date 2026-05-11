@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>心情日记</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Supabase JS -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            height: auto; min-height: 100%;
+            margin: 0; padding: 0;
+            overflow-y: auto;
+            background: #f5f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI";
+        }
+        .container {
+            max-width: 520px; margin: auto;
+            padding: 16px 16px 120px;
+        }
+        h2 { text-align: center; margin-bottom: 16px; color: #333; }
+        .card {
+            background: white; border-radius: 14px;
+            padding: 14px; margin-bottom: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.05);
+        }
+        label { display: block; margin-top: 10px; font-size: 14px; color: #444; }
+        input, select, textarea {
+            width: 100%; padding: 10px; margin-top: 6px;
+            border-radius: 10px; border: 1px solid #ccc; box-sizing: border-box;
+            font-size: 14px;
+        }
+        textarea { height: 70px; resize: none; }
+        .add {
+            position: fixed; right: 20px; bottom: 80px;
+            width: 56px; height: 56px; border-radius: 50%;
+            font-size: 28px; border: none; background: #4f7cff; color: white; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(79, 124, 255, 0.4);
+            z-index: 100;
+        }
+        button.save {
+            margin-top: 10px; width: 100%; padding: 10px;
+            border: none; border-radius: 10px; background: #4f7cff; color: white; font-size: 16px;
+        }
+        .entry {
+            border-left: 4px solid #4f7cff; padding-left: 10px; margin-top: 10px;
+        }
+        .time { font-size: 12px; color: #888; margin-bottom: 4px; }
+        .mood-tag { display: inline-block; background: #eef2ff; color: #4f46e5; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-bottom: 8px; }
+        .empty-tip { text-align: center; color: #999; margin-top: 40px; }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>心情日记</h2>
+        <div id="list">
+            <!-- 日记会显示在这里 -->
+        </div>
+        <button class="add" onclick="addDiary()">+</button>
+    </div>
+
+    <script>
+        // 初始化 Supabase
+        const SUPABASE_URL = "https://dpytpfmxsaepftvixuks.supabase.co"; 
+        const SUPABASE_KEY = "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"; 
+
+        let supabaseClient;
+
+        // 页面加载时初始化并检查登录状态
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof supabase === 'undefined') {
+                alert("❌ 错误：Supabase 库加载失败！请检查网络或使用 Live Server。");
+                return;
+            }
+
+            try {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                window.supabase = supabaseClient; // 挂载到全局
+                console.log("✅ Supabase 初始化成功");
+                
+                // 加载已有日记
+                loadDiaries();
+            } catch (err) {
+                alert("初始化错误: " + err.message);
+            }
+        });
+
+        const moods = [
+            "开心快乐", "焦虑迷茫", "痛苦无力", "急躁不耐",
+            "平淡安稳", "充实新奇", "达成所愿", "屈辱奋发"
+        ];
+
+        function addDiary() {
+            const id = "d-" + Date.now();
+            document.getElementById("list").insertAdjacentHTML("beforeend", `
+                <div class="card" id="${id}">
+                    <div class="time">${new Date().toLocaleString()}</div>
+                    <div class="mood-tag" id="${id}-mood-display">心情：未选择</div>
+                    
+                    <label>日期
+                        <input type="date" id="${id}-date" value="${new Date().toISOString().slice(0,10)}">
+                    </label>
+                    
+                    <label>心情
+                        <select id="${id}-mood" onchange="updateMoodDisplay('${id}')">
+                            <option value="">-- 请选择 --</option>
+                            ${moods.map(m => `<option value="${m}">${m}</option>`).join("")}
+                        </select>
+                    </label>
+                    
+                    <label>之前发生的事 <textarea id="${id}-event"></textarea></label>
+                    <label>具体的感受 <textarea id="${id}-feel"></textarea></label>
+                    
+                    <button class="save" onclick="save('${id}')">保存到云端</button>
+                </div>
+            `);
+        }
+
+        function updateMoodDisplay(id) {
+            const moodSelect = document.getElementById(id + "-mood");
+            const display = document.getElementById(id + "-mood-display");
+            if (moodSelect.value) {
+                display.textContent = "心情：" + moodSelect.value;
+            } else {
+                display.textContent = "心情：未选择";
+            }
+        }
+
+        async function save(id) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = "保存中...";
+
+            try {
+                const date = document.getElementById(id + "-date").value;
+                const mood = document.getElementById(id + "-mood").value;
+                const event = document.getElementById(id + "-event").value;
+                const feel = document.getElementById(id + "-feel").value;
+
+                if (!mood) {
+                    alert("请选择一个心情！");
+                    btn.disabled = false;
+                    btn.textContent = "保存到云端";
+                    return;
+                }
+
+                const { error } = await window.supabase
+                    .from("diaries")
+                    .insert([{
+                        date: date,
+                        mood: mood,
+                        event: event,
+                        feel: feel
+                    }]);
+
+                if (error) {
+                    alert("❌ 保存失败：\n" + error.message);
+                    console.error(error);
+                } else {
+                    alert("✅ 已成功保存到云端！");
+                    // 保存成功后重新加载列表，或者移除表单
+                    loadDiaries();
+                    // 可选：移除刚才的编辑卡片，或者保留让用户看到
+                    // document.getElementById(id).remove(); 
+                }
+            } catch (err) {
+                alert("发生异常：" + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "保存到云端";
+            }
+        }
+
+        async function loadDiaries() {
+            try {
+                const { data, error } = await window.supabase
+                    .from("diaries")
+                    .select("*")
+                    .order("created_at", { ascending: false }); // 按创建时间倒序
+
+                if (error) {
+                    console.error("加载失败:", error);
+                    // 如果是权限错误，提示用户
+                    if (error.message.includes("permission denied")) {
+                        document.getElementById("list").innerHTML = `<div class="empty-tip">⚠️ 权限不足，请在 Supabase 后台开启 RLS 并配置插入/查询策略。</div>`;
+                    }
+                    return;
+                }
+
+                const listEl = document.getElementById("list");
+                if (data.length === 0) {
+                    listEl.innerHTML = `<div class="empty-tip">暂无日记，点击右下角 + 开始记录吧 📝</div>`;
+                    return;
+                }
+
+                listEl.innerHTML = ""; // 清空
+
+                data.forEach(diary => {
+                    listEl.insertAdjacentHTML("beforeend", `
+                        <div class="card entry">
+                            <div class="time">${new Date(diary.created_at).toLocaleString()}</div>
+                            <div class="mood-tag">${diary.mood || '未标记心情'}</div>
+                            
+                            <strong>日期：</strong>${diary.date}
+                            <strong>事情：</strong>${diary.event || '-'}
+                            <strong>感受：</strong>${diary.feel || '-'}
+                            
+                            <button onclick="deleteDiary('${diary.id}', this)" style="margin-top:8px; background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:12px;">删除</button>
+                        </div>
+                    `);
+                });
+            } catch (err) {
+                console.error("加载异常:", err);
+            }
+        }
+
+        async function deleteDiary(id, btnElement) {
+            if (!confirm("确定要删除这条日记吗？")) return;
+            
+            try {
+                const { error } = await window.supabase
+                    .from("diaries")
+                    .delete()
+                    .eq("id", id);
+
+                if (error) {
+                    alert("删除失败：" + error.message);
+                } else {
+                    alert("已删除");
+                    loadDiaries(); // 刷新列表
+                }
+            } catch (err) {
+                alert("删除异常：" + err.message);
+            }
+        }
+
+    </script>
+</body>
+</html>
