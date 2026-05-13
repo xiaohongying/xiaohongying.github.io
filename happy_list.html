@@ -2,42 +2,59 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>幸福物品管理系统</title>
+<title>幸福物品管理系统（Supabase）</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
     body {
-        font-family: Arial, sans-serif;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         padding: 20px;
         background: linear-gradient(135deg, #fff5f5 0%, #ffe0e5 100%);
     }
 
-    textarea, input[type="text"] {
-        width: 90%;
-        padding: 10px;
-        margin-bottom: 10px;
-        font-size: 16px;
-        border: 2px solid #ffb6c1;
-        border-radius: 4px;
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
     }
 
-    textarea:focus, input[type="text"]:focus {
-        outline: none;
-        border-color: #ff69b4;
+    .section {
+        background: rgba(255, 255, 255, 0.8);
+        padding: 25px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px rgba(255,105,180,0.15);
+    }
+
+    h2 {
+        text-align: center;
+        color: #db7093;
+    }
+
+    h3 {
+        color: #db7093;
+        margin-top: 0;
+    }
+
+    textarea, input[type="text"] {
+        width: 100%;
+        padding: 12px 15px;
+        margin-bottom: 12px;
+        font-size: 16px;
+        border: 2px solid #ffb6c1;
+        border-radius: 8px;
+        box-sizing: border-box;
     }
 
     button {
-        padding: 8px 14px;
+        padding: 10px 20px;
         margin-right: 10px;
         font-size: 16px;
         cursor: pointer;
         border: none;
-        border-radius: 4px;
+        border-radius: 25px;
+        font-weight: bold;
         transition: all 0.3s ease;
-    }
-
-    button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .btn-primary {
@@ -50,37 +67,9 @@
         color: #333;
     }
 
-    .btn-danger {
-        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-        color: #333;
-    }
-
-    .section {
-        background: white;
-        padding: 15px;
-        border-radius: 6px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 10px rgba(255,105,180,0.1);
-    }
-
-    h3 {
-        margin-top: 0;
-        color: #db7093;
-    }
-
     .result {
         margin-top: 20px;
         line-height: 1.8;
-    }
-
-    .warning {
-        color: #ff6b6b;
-        font-weight: bold;
-    }
-
-    .safe {
-        color: #51cf66;
-        font-weight: bold;
     }
 
     .happy {
@@ -88,170 +77,115 @@
         font-weight: bold;
     }
 
-    .header-title {
-        text-align: center;
-        color: #db7093;
-        margin-bottom: 30px;
-    }
-
-    .emoji-big {
-        font-size: 24px;
+    .warning {
+        color: #ff6b6b;
+        font-weight: bold;
     }
 </style>
 </head>
 
 <body>
 
-<h2 class="header-title">🌸 幸福物品管理系统 🌸</h2>
+<div class="container">
+    <h2>🌸 幸福物品管理系统 🌸</h2>
 
-<!-- 查询区 -->
-<div class="section">
-    <h3>🔍 批量查询（每行一个物品）</h3>
-    <textarea id="searchInput" placeholder="例如：
-奶茶
-毛毯
-猫咪"></textarea><br>
-    <button class="btn-primary" onclick="batchCheck()">查询</button>
-    <button class="btn-danger" onclick="clearSearch()">清空</button>
+    <div class="section">
+        <h3>🔍 批量查询</h3>
+        <textarea id="searchInput" placeholder="每行一个物品"></textarea><br>
+        <button class="btn-primary" onclick="batchCheck()">查询</button>
+        <button class="btn-secondary" onclick="clearSearch()">清空</button>
+        <div id="result" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>➕ 添加幸福物品</h3>
+        <input id="itemName" placeholder="物品名称">
+        <input id="itemReason" placeholder="幸福原因">
+        <br>
+        <button class="btn-primary" onclick="addItem()">添加</button>
+    </div>
+
+    <div class="section">
+        <h3>📊 统计</h3>
+        <div id="statsDisplay"></div>
+        <button class="btn-secondary" onclick="randomHappy()">随机推荐</button>
+    </div>
 </div>
-
-<!-- 添加区 -->
-<div class="section">
-    <h3>➕ 添加新幸福物品</h3>
-    <input id="newItem" placeholder="物品名称（如：热可可）"><br><br>
-    <input id="newReason" placeholder="幸福原因（如：温暖治愈，缓解焦虑）"><br><br>
-    <button class="btn-primary" onclick="addItem()">添加</button>
-</div>
-
-<!-- 统计区 -->
-<div class="section">
-    <h3>📊 幸福统计</h3>
-    <div id="statsDisplay" class="result"></div>
-    <button class="btn-secondary" onclick="showRandomHappy()">随机推荐幸福物品</button>
-</div>
-
-<div id="result" class="result"></div>
 
 <script>
-let happyList = {
-    "厚棉被": "包裹感很强，安全感满满",
-    "骨传导耳机": "戴上就能拥有自己的小世界",
-    "保温杯": "随时都有热水喝",
-    "柔软的睡衣": "回家换上瞬间放松",
-    "巧克力": "甜食让人快乐",
-    "润唇膏": "嘴巴不干，心情不燥",
-    "软底拖鞋": "走路轻盈，脚丫舒服",
-    "暖宝宝贴": "贴在腰上肚子上很暖和"
-};
+/* ===== Supabase 初始化（完全照抄你那份） ===== */
+const { createClient } = supabase;
 
-/* =========================
-   更新统计显示
-   ========================= */
-function updateStats() {
-    const statsDiv = document.getElementById("statsDisplay");
-    const count = Object.keys(happyList).length;
-    statsDiv.innerHTML = `<span class="happy">💖 当前共有 <b>${count}</b> 件幸福物品</span>`;
+const db = createClient(
+    "https://dpytpfmxsaepftvixuks.supabase.co",
+    "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"
+);
+
+async function updateStats() {
+    const { count } = await db
+        .from('happy_items')
+        .select('*', { count: 'exact', head: true });
+
+    document.getElementById("statsDisplay").innerHTML =
+        `<span class="happy">💖 当前共有 <b>${count}</b> 件幸福物品</span>`;
 }
 
-/* =========================
-   添加新幸福物品
-   ========================= */
-function addItem() {
-    const item = document.getElementById("newItem").value.trim();
-    const reason = document.getElementById("newReason").value.trim();
-    const resultDiv = document.getElementById("result");
+async function addItem() {
+    const name = document.getElementById("itemName").value.trim();
+    const reason = document.getElementById("itemReason").value.trim();
 
-    if (!item || !reason) {
-        alert("物品名称和幸福原因都不能为空！");
+    if (!name || !reason) {
+        alert("名称和原因不能为空");
         return;
     }
 
-    if (happyList[item]) {
-        alert(`⚠️ 「${item}」已经存在于幸福清单中`);
+    const { error } = await db
+        .from('happy_items')
+        .insert([{ name, reason }]);
+
+    if (error) {
+        alert("添加失败：" + error.message);
         return;
     }
 
-    happyList[item] = reason;
-
-    resultDiv.innerHTML = `
-        <div class="happy">
-            ✨ 已成功添加幸福物品：<b>${item}</b><br>
-            理由：${reason}
-        </div>
-    `;
-
-    document.getElementById("newItem").value = "";
-    document.getElementById("newReason").value = "";
-    
+    alert("✨ 添加成功");
     updateStats();
 }
 
-/* =========================
-   批量 + 模糊 + 多重查询（按行）
-   ========================= */
-function batchCheck() {
+async function batchCheck() {
     const input = document.getElementById("searchInput").value;
-    const resultDiv = document.getElementById("result");
+    const keywords = input.split(/\n/).map(k => k.trim()).filter(Boolean);
+    let out = "";
 
-    if (!input.trim()) {
-        resultDiv.innerHTML = "<span class='warning'>⚠️ 请输入至少一个物品</span>";
-        return;
+    for (const k of keywords) {
+        const { data } = await db
+            .from('happy_items')
+            .select('name, reason')
+            .ilike('name', `%${k}%`);
+
+        if (!data.length) {
+            out += `<div class="warning">💔 未找到：${k}</div>`;
+        } else {
+            data.forEach(i => {
+                out += `<div class="happy">💖 ${i.name}：${i.reason}</div>`;
+            });
+        }
     }
 
-    // ✅ 按换行拆分
-    const keywords = input
-        .split(/\n/)
-        .map(k => k.trim())
-        .filter(Boolean);
-
-    let output = "";
-
-    keywords.forEach(keyword => {
-        let matchedCount = 0;
-
-        output += `<hr><b>🔍 查询关键词：</b>${keyword}<br>`;
-
-        for (let item in happyList) {
-            if (
-                item.includes(keyword) ||
-                keyword.includes(item)
-            ) {
-                output += `<div class="happy">
-                    💖 ${item}：幸福源泉（${happyList[item]}）
-                </div>`;
-                matchedCount++;
-            }
-        }
-
-        if (matchedCount === 0) {
-            output += `<div class="warning">💔 未找到相关幸福物品，要不要添加一个？</div>`;
-        }
-    });
-
-    resultDiv.innerHTML = output;
+    document.getElementById("result").innerHTML = out;
 }
 
-/* =========================
-   随机推荐幸福物品
-   ========================= */
-function showRandomHappy() {
-    const items = Object.keys(happyList);
-    if (items.length === 0) {
-        alert("还没有添加任何幸福物品哦！");
-        return;
-    }
-    
-    const randomItem = items[Math.floor(Math.random() * items.length)];
-    const resultDiv = document.getElementById("result");
-    
-    resultDiv.innerHTML = `
-        <div class="happy" style="text-align: center; padding: 20px;">
-            <span class="emoji-big">🎁</span><br>
-            <b>今日幸福推荐：</b><br>
-            <span style="font-size: 20px;">${randomItem}</span><br>
-            <small>理由：${happyList[randomItem]}</small>
-        </div>
-    `;
+async function randomHappy() {
+    const { data } = await db.from('happy_items').select('*');
+    if (!data.length) return alert("暂无数据");
+
+    const i = data[Math.floor(Math.random() * data.length)];
+    document.getElementById("result").innerHTML =
+        `<div class="happy" style="text-align:center;">
+            🎁 今日推荐<br>
+            <b>${i.name}</b><br>
+            ${i.reason}
+        </div>`;
 }
 
 function clearSearch() {
@@ -259,7 +193,6 @@ function clearSearch() {
     document.getElementById("result").innerHTML = "";
 }
 
-// 页面加载时显示统计
 updateStats();
 </script>
 
