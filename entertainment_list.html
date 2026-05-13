@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>娱乐清单管理系统 (Supabase版)</title>
+
+<!-- 1. Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+    /* ================= 以下为你原始文档中的所有 CSS 样式 ================= */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 50%, #fffde7 100%);
+        min-height: 100vh;
+        color: #333;
+    }
+
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .main-content {
+        display: flex;
+        gap: 25px;
+        margin-bottom: 25px;
+    }
+
+    .left-panel, .right-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 25px;
+    }
+
+    textarea, input[type="text"], select {
+        width: 100%;
+        padding: 12px 15px;
+        margin-bottom: 12px;
+        font-size: 16px;
+        border: 2px solid #81c784;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.8);
+        color: #333;
+        box-sizing: border-box;
+    }
+
+    textarea::placeholder, input::placeholder {
+        color: rgba(0, 0, 0, 0.4);
+    }
+
+    textarea:focus, input[type="text"]:focus, select:focus {
+        outline: none;
+        border-color: #4caf50;
+        background: rgba(255, 255, 255, 1);
+        box-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
+    }
+
+    select option {
+        background: #ffffff;
+        color: #333;
+    }
+
+    button {
+        padding: 10px 20px;
+        margin-right: 10px;
+        margin-bottom: 10px;
+        font-size: 16px;
+        cursor: pointer;
+        border: none;
+        border-radius: 25px;
+        transition: all 0.3s ease;
+        font-weight: bold;
+    }
+
+    button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #66bb6a 0%, #81c784 100%);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+        color: #333;
+        border: 2px solid #dce775;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #4db6ac 0%, #80cbc4 100%);
+        color: white;
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #ffcc80 0%, #ffb74d 100%);
+        color: #333;
+    }
+
+    .section {
+        background: rgba(255, 255, 255, 0.7);
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(76, 175, 80, 0.15);
+        border: 1px solid rgba(129, 199, 132, 0.3);
+        backdrop-filter: blur(10px);
+    }
+
+    h2 {
+        text-align: center;
+        color: #388e3c;
+        margin-bottom: 30px;
+        font-size: 2em;
+        text-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+    }
+
+    h3 {
+        margin-top: 0;
+        color: #43a047;
+        font-size: 1.3em;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .result {
+        margin-top: 20px;
+        line-height: 1.8;
+    }
+
+    .warning {
+        color: #ef5350;
+        font-weight: bold;
+        padding: 10px;
+        background: rgba(239, 83, 80, 0.1);
+        border-radius: 8px;
+        border-left: 4px solid #ef5350;
+    }
+
+    .success {
+        color: #26a69a;
+        font-weight: bold;
+        padding: 10px;
+        background: rgba(38, 166, 154, 0.1);
+        border-radius: 8px;
+        border-left: 4px solid #26a69a;
+    }
+
+    .info {
+        color: #78909c;
+        font-weight: bold;
+        padding: 10px;
+        background: rgba(120, 144, 156, 0.1);
+        border-radius: 8px;
+        border-left: 4px solid #78909c;
+    }
+
+    .entertainment-item {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        border: 1px solid rgba(129, 199, 132, 0.5);
+        transition: all 0.3s ease;
+    }
+
+    .entertainment-item:hover {
+        border-color: #4caf50;
+        transform: translateX(5px);
+    }
+
+    .item-name {
+        font-size: 1.2em;
+        color: #388e3c;
+        font-weight: bold;
+    }
+
+    .item-type {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 15px;
+        font-size: 0.85em;
+        margin: 5px 5px 5px 0;
+        color: white;
+    }
+
+    .type-movie { background: #4caf50; }
+    .type-drama { background: #8bc34a; }
+    .type-anime { background: #ff9800; }
+    .type-game { background: #03a9f4; }
+    .type-variety { background: #ff7043; }
+    .type-audio { background: #ab47bc; }
+    .type-webnovel { background: #5c6bc0; }
+    .type-classic { background: #795548; }
+    .type-bestseller { background: #009688; }
+
+    .item-reason {
+        color: #555;
+        margin: 8px 0;
+    }
+
+    .item-tags {
+        margin-top: 8px;
+    }
+
+    .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        background: rgba(76, 175, 80, 0.15);
+        border-radius: 10px;
+        font-size: 0.75em;
+        color: #388e3c;
+        margin-right: 5px;
+    }
+
+    .header-title {
+        text-align: center;
+        color: #388e3c;
+        margin-bottom: 30px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.8);
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid rgba(129, 199, 132, 0.3);
+    }
+
+    .stat-number {
+        font-size: 2em;
+        font-weight: bold;
+        color: #388e3c;
+    }
+
+    .stat-label {
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .search-result-box {
+        padding: 15px;
+        border-radius: 10px;
+        margin-top: 15px;
+    }
+
+    .found-in-watchlist {
+        background: rgba(255, 107, 107, 0.15);
+        border: 2px solid #ef5350;
+    }
+
+    .not-found {
+        background: rgba(38, 166, 154, 0.1);
+        border: 2px solid #26a69a;
+    }
+
+    .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 8px 12px;
+        background: rgba(129, 199, 132, 0.2);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .checkbox-item:hover {
+        background: rgba(76, 175, 80, 0.4);
+    }
+
+    .checkbox-item input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+    }
+
+    .bottom-section {
+        background: rgba(255, 255, 255, 0.7);
+        padding: 30px;
+        border-radius: 15px;
+        box-shadow: 0 8px 32px rgba(76, 175, 80, 0.15);
+        border: 1px solid rgba(129, 199, 132, 0.3);
+        text-align: center;
+    }
+
+    .random-recommendation {
+        padding: 30px;
+        background: linear-gradient(135deg, rgba(129, 199, 132, 0.3) 0%, rgba(255, 249, 196, 0.4) 100%);
+        border-radius: 15px;
+        border: 2px solid #81c784;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .random-icon {
+        font-size: 50px;
+        margin-bottom: 15px;
+    }
+
+    .random-title {
+        font-size: 1.8em;
+        color: #388e3c;
+        margin-bottom: 10px;
+    }
+
+    .random-type {
+        display: inline-block;
+        padding: 5px 15px;
+        background: rgba(76, 175, 80, 0.3);
+        border-radius: 20px;
+        margin-bottom: 15px;
+        color: #2e7d32;
+    }
+    /* ================= CSS 结束 ================= */
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <h2 class="header-title">🎬 娱乐清单管理系统 🍿</h2>
+
+    <div class="main-content">
+        <div class="left-panel">
+            <div class="section">
+                <h3>🔍 智能搜索</h3>
+                <input id="searchInput" type="text" placeholder="输入作品名称，检查是否在待看清单中...">
+                <br>
+                <button class="btn-primary" onclick="searchEntertainment()">搜索</button>
+                <button class="btn-secondary" onclick="clearSearch()">清空</button>
+                <div id="searchResult" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h3>➕ 添加待看作品</h3>
+                <input id="itemName" type="text" placeholder="作品名称（如：奥本海默）">
+                <br>
+                <select id="itemType" style="width: 100%;">
+                    <option value="">-- 选择类型 --</option>
+                    <option value="movie">🎬 电影</option>
+                    <option value="drama">📺 电视剧</option>
+                    <option value="anime">🎭 动漫</option>
+                    <option value="game">🎮 游戏</option>
+                    <option value="variety">📻 综艺</option>
+                    <option value="audio">🎙️ 广播剧</option>
+                    <option value="webnovel">📝 网文</option>
+                    <option value="classic">📜 名著</option>
+                    <option value="bestseller">📘 畅销书</option>
+                </select>
+                <br>
+                <textarea id="itemReason" placeholder="为什么想看？（如：听说剧情很精彩，口碑很好）" rows="3"></textarea>
+                <br>
+                <div style="margin-bottom: 15px;">
+                    <label style="color: #555; margin-bottom: 8px; display: block;">自定义标签（可多选）：</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item"><input type="checkbox" value="高分必看"> 高分必看</label>
+                        <label class="checkbox-item"><input type="checkbox" value="悬疑"> 悬疑</label>
+                        <label class="checkbox-item"><input type="checkbox" value="科幻"> 科幻</label>
+                        <label class="checkbox-item"><input type="checkbox" value="爱情"> 爱情</label>
+                        <label class="checkbox-item"><input type="checkbox" value="喜剧"> 喜剧</label>
+                        <label class="checkbox-item"><input type="checkbox" value="动作"> 动作</label>
+                        <label class="checkbox-item"><input type="checkbox" value="治愈"> 治愈</label>
+                    </div>
+                </div>
+                <input id="customTags" type="text" placeholder="其他自定义标签（用逗号分隔）">
+                <br><br>
+                <button class="btn-success" onclick="addItem()">添加到待看清单</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="section">
+                <h3>📊 清单统计</h3>
+                <div id="statsDisplay" class="stats-grid"></div>
+            </div>
+
+            <div class="section">
+                <h3>📋 我的待看清单</h3>
+                <button class="btn-secondary" onclick="toggleWatchlist()">显示/隐藏清单</button>
+                <div id="watchlistDisplay" class="result" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-section">
+        <h3 style="color: #43a047; margin-bottom: 20px;">🎲 今日份快乐推荐</h3>
+        <button class="btn-warning" onclick="showRandomRecommendation()" style="font-size: 18px; padding: 15px 40px;">
+            ✨ 随机推荐一部作品 ✨
+        </button>
+        <div id="randomResult" class="result" style="margin-top: 20px;"></div>
+    </div>
+</div>
+
+<script>
+    /* ================= Supabase 初始化 ================= */
+    const { createClient } = supabase;
+    const db = createClient(
+        "https://dpytpfmxsaepftvixuks.supabase.co", // <--- 替换这里
+        "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76" // <--- 替换这里
+    );
+
+    // 辅助映射对象
+    const typeNames = { movie: "电影", drama: "电视剧", anime: "动漫", game: "游戏", variety: "综艺", audio: "广播剧", webnovel: "网文", classic: "名著", bestseller: "畅销书" };
+    const typeClasses = { movie: "type-movie", drama: "type-drama", anime: "type-anime", game: "type-game", variety: "type-variety", audio: "type-audio", webnovel: "type-webnovel", classic: "type-classic", bestseller: "type-bestseller" };
+    const typeIcons = { movie: "🎬", drama: "📺", anime: "🎭", game: "🎮", variety: "📻", audio: "🎙️", webnovel: "📝", classic: "📜", bestseller: "📘" };
+
+    /* ================= 核心数据函数 ================= */
+
+    // 从 Supabase 加载所有数据
+    async function getWatchlistFromDB() {
+        const { data, error } = await db.from('watchlist').select('*').order('created_at', { ascending: false });
+        if (error) {
+            console.error("Error fetching data:", error);
+            return [];
+        }
+        return data;
+    }
+
+    // 更新统计数据
+    async function updateStats() {
+        const items = await getWatchlistFromDB();
+        const statsDiv = document.getElementById("statsDisplay");
+        const counts = { total: items.length, movie: 0, drama: 0, anime: 0, game: 0, variety: 0, audio: 0, webnovel: 0, classic: 0, bestseller: 0 };
+        
+        items.forEach(i => {
+            if (counts.hasOwnProperty(i.type)) {
+                counts[i.type]++;
+            }
+        });
+
+        statsDiv.innerHTML = `
+            <div class="stat-card"><div class="stat-number">${counts.total}</div><div class="stat-label">总计</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.movie}</div><div class="stat-label">🎬 电影</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.drama}</div><div class="stat-label">📺 电视剧</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.anime}</div><div class="stat-label">🎭 动漫</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.game}</div><div class="stat-label">🎮 游戏</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.variety}</div><div class="stat-label">📻 综艺</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.audio}</div><div class="stat-label">🎙️ 广播剧</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.webnovel}</div><div class="stat-label">📝 网文</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.classic}</div><div class="stat-label">📜 名著</div></div>
+            <div class="stat-card"><div class="stat-number">${counts.bestseller}</div><div class="stat-label">📘 畅销书</div></div>
+        `;
+    }
+
+    // 渲染待看清单
+    async function renderWatchlist() {
+        const displayDiv = document.getElementById("watchlistDisplay");
+        const items = await getWatchlistFromDB();
+        
+        if (items.length === 0) {
+            displayDiv.innerHTML = "<div class='info'>📭 待看清单还是空的</div>";
+            return;
+        }
+        
+        displayDiv.innerHTML = items.map(data => `
+            <div class="entertainment-item">
+                <div class="item-name">${data.name}</div>
+                <span class="item-type ${typeClasses[data.type]}">${typeNames[data.type]}</span>
+                <div class="item-reason">${data.reason}</div>
+                <div class="item-tags">
+                    ${(data.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // 添加新项目
+    async function addItem() {
+        const name = document.getElementById("itemName").value.trim();
+        const type = document.getElementById("itemType").value;
+        const reason = document.getElementById("itemReason").value.trim();
+        const customTags = document.getElementById("customTags").value.trim();
+
+        if (!name || !type || !reason) {
+            alert("作品名称、类型和想看原因都不能为空！");
+            return;
+        }
+
+        const selectedTags = [...document.querySelectorAll('.checkbox-item input:checked')].map(cb => cb.value);
+        if (customTags) customTags.split(/[,，]/).forEach(tag => { const t = tag.trim(); if(t && !selectedTags.includes(t)) selectedTags.push(t); });
+
+        const { error } = await db.from('watchlist').insert([{ name, type, reason, tags: selectedTags }]);
+
+        if (error) {
+            alert(`添加失败: ${error.message}`);
+            return;
+        }
+
+        // 清空表单
+        document.getElementById("itemName").value = "";
+        document.getElementById("itemReason").value = "";
+        document.getElementById("customTags").value = "";
+        document.querySelectorAll('.checkbox-item input').forEach(cb => cb.checked = false);
+        
+        // 刷新 UI
+        await updateStats();
+        await renderWatchlist();
+        alert(`✨ 已成功添加：${name}`);
+    }
+
+    // 搜索功能
+    async function searchEntertainment() {
+        const keyword = document.getElementById("searchInput").value.trim();
+        const resultDiv = document.getElementById("searchResult");
+        if (!keyword) {
+            resultDiv.innerHTML = "<div class='warning'>⚠️ 请输入要搜索的作品名称</div>";
+            return;
+        }
+
+        const items = await getWatchlistFromDB();
+        const foundItem = items.find(i => i.name.toLowerCase().includes(keyword.toLowerCase()));
+
+        if (foundItem) {
+            resultDiv.innerHTML = `<div class="search-result-box found-in-watchlist">
+                <div class="warning" style="font-size: 1.2em;">⚠️ 「${foundItem.name}」已在待看清单中</div>
+                <div class="entertainment-item">
+                    <div class="item-name">${foundItem.name}</div>
+                    <span class="item-type ${typeClasses[foundItem.type]}">${typeNames[foundItem.type]}</span>
+                    <div class="item-reason">${foundItem.reason}</div>
+                </div>
+            </div>`;
+        } else {
+            resultDiv.innerHTML = `<div class="search-result-box not-found">
+                <div class="success" style="font-size: 1.2em;">✅ 「${keyword}」不在待看清单中</div>
+                <button class="btn-success" onclick="quickAdd('${keyword}')">一键添加</button>
+            </div>`;
+        }
+    }
+    
+    function quickAdd(name) {
+        document.getElementById("itemName").value = name;
+        document.getElementById("itemReason").value = "从搜索快速添加";
+        document.querySelector('.left-panel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function toggleWatchlist() {
+        const displayDiv = document.getElementById("watchlistDisplay");
+        const isHidden = displayDiv.style.display === "none";
+        displayDiv.style.display = isHidden ? "block" : "none";
+        if (isHidden) renderWatchlist();
+    }
+
+    async function showRandomRecommendation() {
+        const items = await getWatchlistFromDB();
+        if (items.length === 0) {
+            alert("还没有添加任何待看作品哦！");
+            return;
+        }
+        const randomItem = items[Math.floor(Math.random() * items.length)];
+        document.getElementById("randomResult").innerHTML = `
+            <div class="random-recommendation">
+                <div class="random-icon">${typeIcons[randomItem.type]}</div>
+                <div class="random-title">${randomItem.name}</div>
+                <div class="random-type">${typeNames[randomItem.type]}</div>
+                <p style="color: #555; margin: 15px 0;">${randomItem.reason}</p>
+                <div class="item-tags">
+                    ${(randomItem.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function clearSearch() {
+        document.getElementById("searchInput").value = "";
+        document.getElementById("searchResult").innerHTML = "";
+    }
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', async () => {
+        await updateStats();
+    });
+</script>
+
+</body>
+</html>
