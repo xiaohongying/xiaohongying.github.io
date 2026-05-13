@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>工作管理系统</title>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body {
+  font-family: "Microsoft YaHei", sans-serif;
+  background: #f5f7fa;
+  margin: 0;
+}
+
+h1, h2 { text-align: center; }
+.hidden { display: none; }
+
+.back {
+  cursor: pointer;
+  color: #4da3ff;
+  margin: 15px;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px;
+  max-width: 600px;
+  margin: 50px auto;
+}
+
+.card {
+  padding: 40px;
+  border-radius: 16px;
+  color: white;
+  font-size: 20px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.blue   { background: #4da3ff; }
+.green  { background: #5cd88c; }
+.orange { background: #ffb347; }
+.purple { background: #9b7cff; }
+
+.card-container {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.task-card {
+  width: 260px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 15px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.task-card h3 {
+  margin-top: 0;
+  font-size: 18px;
+}
+
+.delete-btn {
+  color: #ff6b6b;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.task-item {
+  margin: 10px 0;
+}
+
+input[type="text"],
+input[type="time"],
+input[type="date"] {
+  width: 100%;
+  margin-top: 4px;
+}
+
+button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #4da3ff;
+  color: white;
+  cursor: pointer;
+}
+
+.panel {
+  max-width: 700px;
+  margin: 0 auto 40px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+textarea {
+  width: 100%;
+  height: 80px;
+}
+
+.file-card, .link-card {
+  width: 260px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  text-align: center;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<!-- 首页 -->
+<div id="home">
+  <h1>工作管理系统</h1>
+  <div class="dashboard">
+    <div class="card blue" onclick="show('tasks')">任务清单</div>
+    <div class="card green" onclick="show('scripts')">沟通话术</div>
+    <div class="card orange" onclick="show('files')">文件系统</div>
+    <div class="card purple" onclick="show('knowledge')">知识管理</div>
+  </div>
+</div>
+
+<!-- 任务清单 -->
+<div id="tasks" class="hidden">
+  <div class="back" onclick="show('home')">⬅ 返回首页</div>
+  <h2>任务清单</h2>
+
+  <div class="card-container">
+    <div id="dailyTasks" class="task-card"></div>
+    <div id="tempTasks" class="task-card"></div>
+    <div id="stageTasks" class="task-card"></div>
+  </div>
+
+  <div style="text-align:center;margin:20px;">
+    <button onclick="show('taskFeedback')">今日反馈</button>
+  </div>
+</div>
+
+<!-- 任务反馈 -->
+<div id="taskFeedback" class="hidden">
+  <div class="back" onclick="show('tasks')">⬅ 返回任务清单</div>
+  <h2>今日反馈</h2>
+  <div class="panel" id="feedbackContent"></div>
+</div>
+
+<!-- 沟通话术 -->
+<div id="scripts" class="hidden">
+  <div class="back" onclick="show('home')">⬅ 返回首页</div>
+  <h2>沟通话术</h2>
+
+  <div class="panel">
+    <input id="person" placeholder="对象">
+    <input id="scene" placeholder="场景">
+    <textarea id="content" placeholder="话术内容"></textarea>
+    <button onclick="addScript()">添加话术</button>
+  </div>
+
+  <div id="scriptList" class="panel"></div>
+</div>
+
+<!-- 文件系统 -->
+<div id="files" class="hidden">
+  <div class="back" onclick="show('home')">⬅ 返回首页</div>
+  <h2>文件系统</h2>
+
+  <div class="card-container">
+    <div class="file-card" onclick="openFile()">项目进度表.xlsx</div>
+    <div class="file-card" onclick="openFile()">数据统计表.xlsx</div>
+  </div>
+</div>
+
+<!-- 知识管理 -->
+<div id="knowledge" class="hidden">
+  <div class="back" onclick="show('home')">⬅ 返回首页</div>
+  <h2>知识管理</h2>
+
+  <div class="card-container">
+    <div class="link-card" onclick="openLink('yuque')">语雀</div>
+    <div class="link-card" onclick="openLink('mubu')">幕布</div>
+  </div>
+</div>
+
+<script>
+/* ================= Supabase 初始化 ================= */
+const { createClient } = supabase;
+const db = createClient(
+  "https://dpytpfmxsaepftvixuks.supabase.co",
+  "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"
+);
+
+/* ================= 基础工具 ================= */
+function show(page) {
+  document.querySelectorAll("body > div").forEach(d => d.classList.add("hidden"));
+  document.getElementById(page).classList.remove("hidden");
+  if (page === "tasks") renderTasks();
+  if (page === "scripts") renderScripts();
+  if (page === "taskFeedback") renderFeedback();
+}
+
+const today = new Date().toISOString().slice(0,10);
+let reminderList = [];
+
+/* ================= 日常任务每日重置 ================= */
+async function resetDailyTasksIfNeeded() {
+  const { data: defs } = await db
+    .from("task_definitions")
+    .select("*")
+    .eq("category", "日常任务");
+
+  for (const t of defs) {
+    await db.from("task_records").upsert({
+      task_name: t.name,
+      category: "日常任务",
+      done: false,
+      date: today,
+      note: null,
+      time: null,
+      start_date: null,
+      end_date: null
+    }, { onConflict: ["task_name","date"] });
+  }
+}
+
+/* ================= 加载任务定义 ================= */
+async function loadTaskDefs() {
+  const { data } = await db.from("task_definitions").select("*");
+  const res = { "日常任务": [], "临时任务": [], "阶段任务": [] };
+  data?.forEach(t => res[t.category].push(t.name));
+  return res;
+}
+
+/* ================= 加载任务记录 ================= */
+async function loadTaskRecords() {
+  const { data } = await db.from("task_records").select("*");
+  const map = {};
+  data?.forEach(r => map[r.task_name] = r);
+  return map;
+}
+
+/* ================= 提醒收集 ================= */
+function collectReminder(name, field) {
+  reminderList.push(`${name}（${field}）`);
+}
+
+/* ================= 渲染任务 ================= */
+async function renderTasks() {
+  reminderList = [];
+  await resetDailyTasksIfNeeded();
+
+  const defs = await loadTaskDefs();
+  const recs = await loadTaskRecords();
+
+  const render = (cat, id) => {
+    const c = document.getElementById(id);
+    c.innerHTML = `<h3>${cat} <span onclick="addTask('${cat}')">➕</span></h3>`;
+
+    defs[cat].forEach(name => {
+      const r = recs[name] || {};
+
+      if (r.start_date === today) collectReminder(name, "开始时间");
+      if (r.end_date === today) collectReminder(name, "结束时间");
+
+      c.innerHTML += `
+        <div class="task-item">
+          <label>
+            <input type="checkbox" ${r.done?"checked":""}
+              onchange="toggleTask('${name}', this.checked)">
+            ${name}
+          </label>
+
+          ${cat === "日常任务" ? `
+            <input type="time" value="${r.time||''}"
+              onchange="updateTask('${name}',{time:this.value})">
+          ` : `
+            <input type="date" value="${r.start_date||''}"
+              onchange="updateTask('${name}',{start_date:this.value})">
+            <input type="date" value="${r.end_date||''}"
+              onchange="updateTask('${name}',{end_date:this.value})">
+          `}
+
+          <button onclick="editNote('${name}')">📝</button>
+          ${r.note ? `<div style="font-size:13px;color:#666;">📌 ${r.note}</div>` : ""}
+
+          <span class="delete-btn" onclick="deleteTask('${name}','${cat}')">🗑</span>
+        </div>
+      `;
+    });
+  };
+
+  render("日常任务","dailyTasks");
+  render("临时任务","tempTasks");
+  render("阶段任务","stageTasks");
+
+  if (reminderList.length) {
+    setTimeout(() => {
+      alert("今日任务提醒：\n\n" + reminderList.join("\n"));
+    }, 300);
+  }
+}
+
+/* ================= 勾选任务 ================= */
+async function toggleTask(name, checked) {
+  await db.from("task_records").upsert({
+    task_name: name,
+    done: checked,
+    date: today
+  }, { onConflict: ["task_name","date"] });
+
+  renderTasks();
+}
+
+/* ================= 更新任意字段 ================= */
+async function updateTask(name, obj) {
+  await db.from("task_records").upsert({
+    task_name: name,
+    date: today,
+    ...obj
+  }, { onConflict: ["task_name","date"] });
+}
+
+/* ================= 备注编辑 ================= */
+async function editNote(name) {
+  const recs = await loadTaskRecords();
+  const old = recs[name]?.note || "";
+  const note = prompt("请输入备注", old);
+  if (note === null) return;
+
+  await updateTask(name, { note });
+  renderTasks();
+}
+
+/* ================= 添加任务 ================= */
+async function addTask(category) {
+  const name = prompt(`请输入${category}名称`);
+  if (!name) return;
+
+  await db.from("task_definitions").insert({ category, name });
+  renderTasks();
+}
+
+/* ================= 删除任务 ================= */
+async function deleteTask(name, category) {
+  if (!confirm(`确定删除任务「${name}」？`)) return;
+
+  await db.from("task_definitions")
+    .delete()
+    .eq("category", category)
+    .eq("name", name);
+
+  await db.from("task_records")
+    .delete()
+    .eq("task_name", name);
+
+  renderTasks();
+}
+
+/* ================= 今日反馈 ================= */
+async function renderFeedback() {
+  const { data } = await db
+    .from("task_records")
+    .select("*")
+    .eq("date", today)
+    .eq("done", true);
+
+  const div = document.getElementById("feedbackContent");
+  div.innerHTML = "";
+
+  if (!data.length) {
+    div.innerHTML = "<p>暂无完成记录</p>";
+    return;
+  }
+
+  data.forEach(r => {
+    div.innerHTML += `<p>✔ ${r.task_name}</p>`;
+  });
+}
+
+/* ================= 沟通话术 ================= */
+async function addScript() {
+  await db.from("communication_scripts").insert({
+    person: person.value,
+    scene: scene.value,
+    content: content.value
+  });
+  renderScripts();
+}
+
+async function renderScripts() {
+  const { data } = await db.from("communication_scripts").select("*");
+  scriptList.innerHTML = data.map(s => `
+    <div>
+      <b>${s.person} - ${s.scene}</b>
+      <div>${s.content}</div>
+    </div>
+  `).join("");
+}
+
+/* ================= 文件 & 知识 ================= */
+function openFile() { alert("跳转 Excel"); }
+function openLink(t) {
+  t === "yuque" ? window.open("https://www.yuque.com/dashboard")
+                 : window.open("https://mubu.com/app");
+}
+
+/* ================= 初始化 ================= */
+show("home");
+</script>
+
+</body>
+</html>
