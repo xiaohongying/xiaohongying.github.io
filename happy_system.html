@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <title>幸福管理系统</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 body {
@@ -74,7 +75,8 @@ h1, h2 { text-align: center; }
   margin: 10px 0;
 }
 
-input[type="datetime-local"] {
+input[type="datetime-local"],
+input[type="time"] {
   width: 100%;
   margin-top: 4px;
 }
@@ -135,7 +137,6 @@ button {
 
   <div class="btn-group">
     <button onclick="show('feedbackPage')">今日反馈</button>
-    <button onclick="show('chartPage')">本周完成趋势</button>
   </div>
 </div>
 
@@ -144,15 +145,6 @@ button {
   <div class="back" onclick="show('actions')">⬅ 返回微行动</div>
   <h2>今日反馈</h2>
   <div class="panel" id="feedback"></div>
-</div>
-
-<!-- 本周趋势 -->
-<div id="chartPage" class="hidden">
-  <div class="back" onclick="show('actions')">⬅ 返回微行动</div>
-  <h2>本周完成趋势</h2>
-  <div class="panel">
-    <canvas id="chart"></canvas>
-  </div>
 </div>
 
 <!-- 旅途目标 -->
@@ -181,7 +173,7 @@ button {
   </div>
 </div>
 
-<!-- ✅ 幸福指数 -->
+<!-- 幸福指数 -->
 <div id="happiness" class="hidden">
   <div class="back" onclick="show('home')">⬅ 返回首页</div>
   <h2>幸福指数</h2>
@@ -196,23 +188,22 @@ button {
 </div>
 
 <script>
-/* ================= 基础数据 ================= */
-const defaultActions = {
-  "生活": ["睡觉","起床","吃饭","运动","洗澡","扫地","洗头","吹头发","洗衣服","做饭","丢垃圾","吃维生素片"],
-  "社会化": ["出门","与人打招呼","与ai练习沟通表达","观看综艺节目","与人一起吃饭","整理工作流程","与人共餐"],
-  "自我期许": ["写小说","摄入新知识","写代码","整理旧知识"]
-};
+/* ================= Supabase 初始化 ================= */
+const { createClient } = supabase;
+const db = createClient(
+  "https://dpytpfmxsaepftvixuks.supabase.co",   // ← 替换
+  "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"    // ← 替换
+);
 
-const goals = { high: ["睡觉","起床","洗澡"], mid: ["做饭","丢垃圾","吃维生素片"], low: [] };
-const actions = JSON.parse(localStorage.getItem("actionsConfig")) || JSON.parse(JSON.stringify(defaultActions));
-const records = JSON.parse(localStorage.getItem("records")) || {};
-const tripGoals = JSON.parse(localStorage.getItem("tripGoals")) || { today: [], near: [], far: [] };
+/* ================= 基础工具 ================= */
+function show(page) {
+  document.querySelectorAll("body > div").forEach(d => d.classList.add("hidden"));
+  document.getElementById(page).classList.remove("hidden");
 
-/* ================= 工具函数 ================= */
-function saveAll() {
-  localStorage.setItem("actionsConfig", JSON.stringify(actions));
-  localStorage.setItem("records", JSON.stringify(records));
-  localStorage.setItem("tripGoals", JSON.stringify(tripGoals));
+  if (page === "actions") renderCards();
+  if (page === "tripGoals") renderTripGoals();
+  if (page === "feedbackPage") updateFeedback();
+  if (page === "happiness") renderHappiness();
 }
 
 function getTodayKey() {
@@ -232,304 +223,238 @@ function getWeekDates() {
   });
 }
 
-function getGoal(name) {
-  if (goals.high.includes(name)) return 6;
-  if (goals.mid.includes(name)) return 5;
-  return 3;
+/* ================= 微行动定义 ================= */
+async function loadActions() {
+  const { data } = await db.from("action_definitions").select("*");
+  const result = { "生活": [], "社会化": [], "自我期许": [] };
+  data?.forEach(r => result[r.category].push(r.name));
+  return result;
 }
 
-/* ================= 幸福指数 ================= */
-function getDailyHappiness() {
+/* ================= 微行动记录 ================= */
+async function loadRecords() {
+  const { data } = await db.from("action_records").select("*");
+  const map = {};
+  data?.forEach(r => {
+    if (!map[r.action_name]) map[r.action_name] = { days: [], time: r.time, note: r.note };
+    map[r.action_name].days.push(r.date);
+  });
+  return map;
+}
+
+/* ================= 微行动卡片 ================= */
+async function renderCards() {
+  const actions = await loadActions();
+  const records = await loadRecords();
   const today = getTodayKey();
-  let count = 0;
-  Object.values(records).forEach(rec => {
-    if (rec.days && rec.days.includes(today)) {
-      count++;
-    }
-  });
-  return count;
-}
 
-function getWeeklyHappiness() {
-  const week = getWeekDates();
-  let total = 0;
-  week.forEach(day => {
-    Object.values(records).forEach(rec => {
-      if (rec.days && rec.days.includes(day)) {
-        total++;
-      }
-    });
-  });
-  return total;
-}
+  const { data: tg } = await db.from("trip_goals").select("*");
+  const todayGoals = tg?.filter(g => g.type === "today") || [];
 
-/* ================= 页面切换 ================= */
-function show(page) {
-  document.querySelectorAll("body > div").forEach(d => d.classList.add("hidden"));
-  document.getElementById(page).classList.remove("hidden");
-
-  if (page === "tripGoals") renderTripGoals();
-  if (page === "feedbackPage") updateFeedback();
-  if (page === "chartPage") drawChart();
-  if (page === "happiness") renderHappiness();
-}
-
-/* ================= 微行动 ================= */
-function renderCards() {
-  renderCard("生活","card-life");
-  renderCard("社会化","card-social");
-  renderCard("自我期许","card-self");
-}
-
-function renderCard(cat, id) {
-  const c = document.getElementById(id);
-  c.innerHTML = `
-    <h3 style="display:flex;justify-content:space-between;align-items:center;">
+  const render = (cat, id) => {
+    const c = document.getElementById(id);
+    c.innerHTML = `<h3 style="display:flex;justify-content:space-between;align-items:center;">
       ${cat}
-      <span style="cursor:pointer;font-size:22px;" onclick="addActionTo('${cat}')">➕</span>
-    </h3>
-  `;
+      <span style="cursor:pointer;font-size:22px;" onclick="addAction('${cat}')">➕</span>
+    </h3>`;
 
-  actions[cat].forEach(name => {
-    const rec = records[name] || { days: [] };
-    const today = getTodayKey();
-    const isCheckedToday = rec.days.includes(today);
-    const isTodayGoal = tripGoals.today.includes(name);
+    actions[cat].forEach(name => {
+      const rec = records[name] || { days: [] };
+      const checked = rec.days.includes(today);
+      const isTodayGoal = todayGoals.some(g => g.name === name);
 
-    const div = document.createElement("div");
-    div.className = "action-item";
-    const textStyle = isTodayGoal
-      ? 'class="today-highlight"'
-      : (isCheckedToday ? 'style="color:green;"' : '');
+      c.innerHTML += `
+        <div class="action-item">
+          <label>
+            <input type="checkbox" ${checked?"checked":""}
+              onchange="toggle('${name}')">
+            <span class="${isTodayGoal ? 'today-highlight' : ''}">${name}</span>
+          </label>
+          <input type="time" value="${rec.time||''}"
+            onchange="setTime('${name}',this.value)">
+          <div style="margin-top:6px;">
+            <span class="delete-btn" onclick="editNote('${name}')">📝</span>
+            <span class="delete-btn" onclick="deleteAction('${name}','${cat}')">🗑</span>
+          </div>
+          ${rec.note ? `<div style="font-size:13px;color:#666;">📌 ${rec.note}</div>` : ""}
+        </div>
+      `;
+    });
+  };
 
-    div.innerHTML = `
-      <label>
-        <input type="checkbox" ${isCheckedToday?"checked":""}
-          onchange="toggle('${name}')">
-        <span ${textStyle}>${name}</span>
-      </label>
-      <input type="datetime-local" value="${rec.time||''}"
-        onchange="setTime('${name}',this.value)">
-      <div style="margin-top:6px;">
-        <span class="delete-btn" onclick="deleteAction('${name}','${cat}')">🗑 删除</span>
-        <span style="color:#4da3ff;cursor:pointer;font-size:14px;"
-          onclick="editNote('${name}')">📝 备注</span>
-      </div>
-      ${rec.note ? `<div style="font-size:13px;color:#666;">📌 ${rec.note}</div>` : ""}
-    `;
-    c.appendChild(div);
-  });
+  render("生活","card-life");
+  render("社会化","card-social");
+  render("自我期许","card-self");
 }
 
-function addActionTo(cat) {
+/* ================= 微行动 CRUD ================= */
+async function addAction(cat) {
   const name = prompt(`请输入新的微行动（${cat}）：`);
   if (!name) return;
-  if (actions[cat].includes(name)) {
-    alert("该微行动已存在");
-    return;
-  }
-  actions[cat].push(name);
-  records[name] = { days: [], time: "", note: "" };
-  saveAll();
+  await db.from("action_definitions").insert({ category: cat, name });
   renderCards();
 }
 
-function toggle(name) {
-  if (!records[name]) records[name] = { days: [], time: "" };
-  const rec = records[name];
-  const today = getTodayKey();
-
-  rec.days.includes(today)
-    ? rec.days = rec.days.filter(d => d !== today)
-    : rec.days.push(today);
-
-  rec.time = rec.time || new Date().toISOString().slice(0,16);
-  saveAll();
-  renderCards();
-}
-
-function setTime(name, val) {
-  records[name].time = val;
-  saveAll();
-}
-
-function editNote(name) {
-  const note = prompt("请输入备注：", records[name]?.note || "");
-  if (note === null) return;
-  records[name].note = note.trim() || null;
-  saveAll();
-  renderCards();
-}
-
-function deleteAction(name, cat) {
+async function deleteAction(name, cat) {
   if (!confirm(`删除「${name}」？`)) return;
-  actions[cat] = actions[cat].filter(n => n !== name);
-  delete records[name];
-  saveAll();
+  await db.from("action_definitions").delete().eq("name", name);
   renderCards();
 }
 
-function updateFeedback() {
+async function toggle(name) {
+  const today = getTodayKey();
+  const records = await loadRecords();
+  const rec = records[name];
+
+  if (rec?.days.includes(today)) {
+    await db.from("action_records").delete()
+      .eq("action_name", name)
+      .eq("date", today);
+  } else {
+    await db.from("action_records").upsert(
+      { action_name: name, date: today, time: new Date().toTimeString().slice(0,5) },
+      { onConflict: ["action_name","date"] }
+    );
+  }
+  renderCards();
+  renderHappiness();
+}
+
+async function setTime(name, val) {
+  const today = getTodayKey();
+  await db.from("action_records").upsert(
+    { action_name: name, date: today, time: val },
+    { onConflict: ["action_name","date"] }
+  );
+}
+
+async function editNote(name) {
+  const note = prompt("请输入备注：", "");
+  const today = getTodayKey();
+  await db.from("action_records").upsert(
+    { action_name: name, date: today, note },
+    { onConflict: ["action_name","date"] }
+  );
+  renderCards();
+}
+
+/* ================= 今日反馈 ================= */
+async function updateFeedback() {
   const fb = document.getElementById("feedback");
   const today = getTodayKey();
+  const records = await loadRecords();
+
   let html = "";
-  Object.values(actions).flat().forEach(name => {
-    if (records[name]?.days?.includes(today)) {
-      html += `<p>✔ ${name}</p>`;
-    }
+  Object.keys(records).forEach(name => {
+    if (records[name].days.includes(today)) html += `<p>✔ ${name}</p>`;
   });
   fb.innerHTML = html || "<p>暂无今日打卡</p>";
 }
 
-function drawChart() {
-  const labels = [];
-  const targets = [];
-  const actuals = [];
+/* ================= 幸福指数 ================= */
+async function renderHappiness() {
+  const today = getTodayKey();
   const week = getWeekDates();
+  const records = await loadRecords();
 
-  Object.values(actions).flat().forEach(name => {
-    labels.push(name);
-    targets.push(getGoal(name));
-    const rec = records[name] || {};
-    actuals.push(week.filter(d => (rec.days||[]).includes(d)).length);
+  let daily = 0, weekly = 0;
+  Object.values(records).forEach(rec => {
+    if (rec.days.includes(today)) daily++;
+    week.forEach(d => { if (rec.days.includes(d)) weekly++; });
   });
 
-  if (window.myChart) myChart.destroy();
-  window.myChart = new Chart(document.getElementById("chart"), {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        { label: "目标次数", data: targets, backgroundColor: "#e0e0e0" },
-        { label: "本周完成", data: actuals, backgroundColor: "#4da3ff" }
-      ]
-    },
-    options: { indexAxis: "y", scales: { x: { beginAtZero: true, suggestedMax: 7 } } }
-  });
+  document.getElementById("dailyHappiness").innerText = daily + " 分";
+  document.getElementById("weeklyHappiness").innerText = weekly + " 分";
 }
 
 /* ================= 旅途目标 ================= */
-function renderTripGoals() {
-  renderTodayGoals();
-  renderNearGoals();
-  renderFarGoals();
+async function renderTripGoals() {
+  const { data } = await db.from("trip_goals").select("*");
+  const goals = { today: [], near: [], far: [] };
+  data?.forEach(g => goals[g.type].push(g));
+
+  const render = (type, id) => {
+    const c = document.getElementById(id);
+    c.innerHTML = `<h3>${type==="today"?"今日":type==="near"?"近期":"远期"}目标
+      <span style="cursor:pointer;font-size:22px;" onclick="addTripGoal('${type}')">➕</span>
+    </h3>`;
+    goals[type].forEach((g, i) => {
+      c.innerHTML += `<div class="trip-item">
+        ${g.name}
+        ${g.start_date ? `(${g.start_date} ~ ${g.end_date})` : ""}
+        <span class="delete-btn" onclick="deleteTripGoal(${g.id})">🗑</span>
+      </div>`;
+    });
+  };
+
+  render("today","todayGoals");
+  render("near","nearGoals");
+  render("far","farGoals");
+
+  checkTripGoalReminder([...goals.near, ...goals.far]);
 }
 
-function renderTodayGoals() {
-  const c = document.getElementById("todayGoals");
-  c.innerHTML = `<h3>今日目标 <span style="cursor:pointer;font-size:22px;" onclick="addTodayGoal()">➕</span></h3>`;
-  tripGoals.today.forEach((name, i) => {
-    c.innerHTML += `<div class="trip-item">${name} <span class="delete-btn" onclick="removeTodayGoal(${i})">🗑</span></div>`;
-  });
-}
-
-function addTodayGoal() {
-  const all = Object.values(actions).flat();
-  const name = prompt("从微行动中选择今日目标：\n" + all.join("\n"));
-  if (!all.includes(name)) return;
-  tripGoals.today.push(name);
-  saveAll();
+/* ================= 今日目标（严格绑定微行动） ================= */
+async function addTripGoal(type) {
+  if (type === "today") {
+    const actions = await loadActions();
+    const list = Object.values(actions).flat();
+    const name = prompt("请从已有微行动中选择今日目标：\n" + list.join("\n"));
+    if (!list.includes(name)) {
+      alert("只能选择已有微行动");
+      return;
+    }
+    await db.from("trip_goals").insert({ type, name });
+  } else {
+    const name = prompt("目标名称：");
+    const start = prompt("开始日期（YYYY-MM-DD）：");
+    const end = prompt("结束日期（YYYY-MM-DD）：");
+    if (!name || !start || !end) return;
+    await db.from("trip_goals").insert({ type, name, start_date: start, end_date: end });
+  }
   renderTripGoals();
   renderCards();
 }
 
-function removeTodayGoal(i) {
-  tripGoals.today.splice(i, 1);
-  saveAll();
+async function deleteTripGoal(id) {
+  await db.from("trip_goals").delete().eq("id", id);
   renderTripGoals();
   renderCards();
 }
 
-function renderNearGoals() {
-  const c = document.getElementById("nearGoals");
-  c.innerHTML = `<h3>近期目标 <span style="cursor:pointer;font-size:22px;" onclick="addNearGoal()">➕</span></h3>`;
-  tripGoals.near.forEach((g, i) => {
-    c.innerHTML += `
-      <div class="trip-item">
-        <strong>${g.name}</strong><br>
-        开始：${g.start}<br>
-        结束：${g.end}
-        <div class="delete-btn" onclick="removeNearGoal(${i})">🗑</div>
-      </div>
-    `;
+/* ================= ✅ 正确的时间提醒逻辑 ================= */
+function checkTripGoalReminder(goals) {
+  const today = getTodayKey();
+
+  goals.forEach(g => {
+    if (!g.start_date || !g.end_date) return;
+
+    if (g.start_date === today) {
+      alert(`🚀 目标开始：${g.name}`);
+    }
+
+    if (g.end_date === today) {
+      alert(`🏁 目标结束：${g.name}`);
+    }
   });
 }
 
-function addNearGoal() {
-  const name = prompt("目标名称：");
-  const start = prompt("开始时间（YYYY-MM-DD）：");
-  const end = prompt("结束时间（YYYY-MM-DD）：");
-  if (!name || !start || !end) return;
-  tripGoals.near.push({ name, start, end });
-  saveAll();
-  renderTripGoals();
-}
-
-function removeNearGoal(i) {
-  tripGoals.near.splice(i, 1);
-  saveAll();
-  renderTripGoals();
-}
-
-function renderFarGoals() {
-  const c = document.getElementById("farGoals");
-  c.innerHTML = `<h3>远期目标 <span style="cursor:pointer;font-size:22px;" onclick="addFarGoal()">➕</span></h3>`;
-  tripGoals.far.forEach((g, i) => {
-    c.innerHTML += `
-      <div class="trip-item">
-        <strong>${g.name}</strong><br>
-        开始：${g.start}<br>
-        结束：${g.end}
-        <div class="delete-btn" onclick="removeFarGoal(${i})">🗑</div>
-      </div>
-    `;
-  });
-}
-
-function addFarGoal() {
-  const name = prompt("目标名称：");
-  const start = prompt("开始时间：");
-  const end = prompt("结束时间：");
-  if (!name || !start || !end) return;
-  tripGoals.far.push({ name, start, end });
-  saveAll();
-  renderTripGoals();
-}
-
-function removeFarGoal(i) {
-  tripGoals.far.splice(i, 1);
-  saveAll();
-  renderTripGoals();
-}
-
-/* ================= 外部跳转 ================= */
+/* ================= 外部链接 ================= */
 function openLeiDan() {
   window.open("https://xiaohongying.github.io/adv_list.html", "_blank");
 }
-
 function openHappyItem() {
   window.open("https://xiaohongying.github.io/happy_list.html", "_blank");
 }
 function openEntertainmentList() {
   window.open("https://xiaohongying.github.io/entertainment_list.html", "_blank");
 }
-
 function openKnowledgeSystem() {
   window.open("https://www.yuque.com/dashboard", "_blank");
   window.open("https://mubu.com/app", "_blank");
 }
-
 function openMoodDiary() {
   window.open("https://xiaohongying.github.io/mood_diary.html", "_blank");
-}
-
-/* ================= 幸福指数页面 ================= */
-function renderHappiness() {
-  document.getElementById("dailyHappiness").innerText =
-    getDailyHappiness() + " 分";
-
-  document.getElementById("weeklyHappiness").innerText =
-    getWeeklyHappiness() + " 分";
 }
 
 /* ================= 初始化 ================= */
