@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>买菜系统 + 购物清单</title>
 
-<!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
@@ -15,16 +14,29 @@ body {
 }
 
 .container {
-  max-width: 600px;
+  max-width: 1100px;
   margin: auto;
 }
 
+/* ===== ✅ 左右两栏核心 ===== */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media screen and (max-width: 768px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== 卡片样式 ===== */
 .card {
   background: #fff;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-  margin-bottom: 25px;
 }
 
 h2 {
@@ -60,14 +72,25 @@ button {
 .list-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 10px;
   border-bottom: 1px solid #eee;
+}
+
+.item-main {
+  flex: 1;
+}
+
+.item-price {
+  font-size: 13px;
+  color: #2ecc71;
+  margin-top: 4px;
 }
 
 .delete {
   color: #ff6b6b;
   cursor: pointer;
+  margin-left: 10px;
 }
 </style>
 </head>
@@ -76,33 +99,37 @@ button {
 
 <div class="container">
 
-  <!-- ===== 菜价系统 ===== -->
-  <div class="card">
-    <h2>🥬 菜价计算</h2>
+  <!-- ===== ✅ 左右两栏容器 ===== -->
+  <div class="main-layout">
 
-    <input id="searchName" placeholder="菜名">
-    <button onclick="searchItem()">🔍 搜索菜名</button>
+    <!-- 左：菜价系统 -->
+    <div class="card">
+      <h2>🥬 菜价计算</h2>
 
-    <input id="inputPrice" type="number" placeholder="图片价格（元/kg）">
-    <button onclick="saveItem()">💾 保存并查看价格</button>
+      <input id="searchName" placeholder="菜名">
+      <button onclick="searchItem()">🔍 搜索菜名</button>
 
-    <div id="calcResult" class="result"></div>
+      <input id="inputPrice" type="number" placeholder="图片价格（元/kg）">
+      <button onclick="saveItem()">💾 保存并查看价格</button>
+
+      <div id="calcResult" class="result"></div>
+    </div>
+
+    <!-- 右：购物清单 -->
+    <div class="card">
+      <h2>🛒 购物清单</h2>
+
+      <input id="shopInput" placeholder="输入菜名或商品">
+      <button onclick="addShop()">添加</button>
+
+      <div id="shopList"></div>
+    </div>
+
   </div>
-
-  <!-- ===== 购物清单 ===== -->
-  <div class="card">
-    <h2>🛒 购物清单</h2>
-
-    <input id="shopInput" placeholder="想买什么？">
-    <button onclick="addShop()">添加</button>
-
-    <div id="shopList"></div>
-  </div>
-
 </div>
 
 <script>
-/* ================= ✅ 全局 Supabase ================= */
+/* ================= 全局 Supabase ================= */
 const { createClient } = supabase;
 const db = createClient(
   "https://dpytpfmxsaepftvixuks.supabase.co",
@@ -117,7 +144,7 @@ function calcRange(input) {
   };
 }
 
-/* ================= 搜索菜名 ================= */
+/* ================= 搜索菜价 ================= */
 async function searchItem() {
   const name = document.getElementById("searchName").value.trim();
   const box = document.getElementById("calcResult");
@@ -185,23 +212,46 @@ async function addShop() {
   loadShop();
 }
 
+async function getPriceInfo(name) {
+  const { data } = await db
+    .from("grocery_items")
+    .select("low_price, high_price")
+    .eq("name", name)
+    .limit(1);
+
+  return data?.[0] || null;
+}
+
 async function loadShop() {
+  const today = new Date().toISOString().slice(0,10);
+
   const { data } = await db
     .from("shopping_list")
     .select("*")
-    .eq("created_at", new Date().toISOString().slice(0,10));
+    .eq("created_at", today);
 
   const list = document.getElementById("shopList");
   list.innerHTML = "";
 
-  data?.forEach(i => {
+  for (const i of data || []) {
+    const price = await getPriceInfo(i.content);
+
     list.innerHTML += `
       <div class="list-item">
-        ${i.content}
+        <div class="item-main">
+          <div>${i.content}</div>
+          ${
+            price
+              ? `<div class="item-price">
+                  价格参考：${price.low_price.toFixed(2)} ~ ${price.high_price.toFixed(2)} 元/斤
+                </div>`
+              : ""
+          }
+        </div>
         <span class="delete" onclick="deleteShop('${i.id}')">🗑</span>
       </div>
     `;
-  });
+  }
 }
 
 async function deleteShop(id) {
@@ -209,7 +259,7 @@ async function deleteShop(id) {
   loadShop();
 }
 
-/* ================= 自动清理（仅购物清单） ================= */
+/* ================= 自动清理 ================= */
 (async () => {
   await db
     .from("shopping_list")
