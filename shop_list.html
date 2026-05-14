@@ -94,45 +94,55 @@ button {
   font-size: 16px;
 }
 
+/* ================= 模式切换按钮 ================= */
+#modeToggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: #333;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 9999;
+}
+
+/* ===== 强制手机模式 ===== */
+body.mobile-mode .main-layout {
+  grid-template-columns: 1fr !important;
+}
+
+body.mobile-mode input,
+body.mobile-mode button {
+  font-size: 18px !important;
+  padding: 14px !important;
+}
+
+body.mobile-mode .card {
+  padding: 18px 14px !important;
+}
+
+/* ===== 强制桌面模式 ===== */
+body.desktop-mode .main-layout {
+  grid-template-columns: 1fr 1fr !important;
+}
+
 /* =======================================
-   ✅ 手机端：左右变上下 + 放大
+   ✅ 手机端兜底（防止浏览器不识别）
 ======================================= */
 @media screen and (max-width: 768px) {
-
-  body {
-    padding: 12px;
-  }
-
-  .main-layout {
-    grid-template-columns: 1fr; /* ✅ 上下布局 */
-  }
-
-  h2 {
-    font-size: 22px;
-  }
-
-  input,
-  button {
-    font-size: 18px;
-    padding: 14px;
-  }
-
-  .card {
-    padding: 18px 14px;
-  }
-
-  .item-price {
-    font-size: 15px;
-  }
-
-  .delete {
-    font-size: 18px;
+  body:not(.desktop-mode) .main-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>
 </head>
 
 <body>
+
+<!-- ✅ 模式切换按钮 -->
+<div id="modeToggle" onclick="toggleMode()">🖥️ 桌面模式</div>
 
 <div class="container">
 
@@ -305,6 +315,32 @@ async function deleteShop(id) {
 
   loadShop();
 })();
+
+/* ================= 模式切换 ================= */
+const modeBtn = document.getElementById("modeToggle");
+
+function applyMode(mode) {
+  document.body.classList.remove("mobile-mode", "desktop-mode");
+  document.body.classList.add(mode + "-mode");
+
+  modeBtn.innerText = mode === "mobile"
+    ? "📱 手机模式"
+    : "🖥️ 桌面模式";
+
+  localStorage.setItem("layoutMode", mode);
+}
+
+function toggleMode() {
+  const current = localStorage.getItem("layoutMode") || "desktop";
+  applyMode(current === "desktop" ? "mobile" : "desktop");
+}
+
+window.addEventListener("load", () => {
+  const saved = localStorage.getItem("layoutMode");
+  if (saved) {
+    applyMode(saved);
+  }
+});
 </script>
 
 </body>
