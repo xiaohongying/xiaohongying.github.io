@@ -4,13 +4,16 @@
 <meta charset="UTF-8">
 <title>买菜系统 + 购物清单</title>
 
+<!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
+/* ================= 基础样式 ================= */
 body {
   font-family: "Microsoft YaHei", sans-serif;
   background: #f5f7fa;
   padding: 20px;
+  margin: 0;
 }
 
 .container {
@@ -18,20 +21,13 @@ body {
   margin: auto;
 }
 
-/* ===== ✅ 左右两栏核心 ===== */
+/* ===== 桌面端：左右两栏 ===== */
 .main-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
-@media screen and (max-width: 768px) {
-  .main-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ===== 卡片样式 ===== */
 .card {
   background: #fff;
   padding: 20px;
@@ -42,6 +38,8 @@ body {
 h2 {
   border-left: 5px solid #4da3ff;
   padding-left: 10px;
+  font-size: 20px;
+  margin-top: 0;
 }
 
 input {
@@ -49,6 +47,7 @@ input {
   padding: 10px;
   margin-top: 10px;
   font-size: 16px;
+  box-sizing: border-box;
 }
 
 button {
@@ -60,6 +59,7 @@ button {
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  font-size: 16px;
 }
 
 .result {
@@ -73,7 +73,7 @@ button {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 10px;
+  padding: 10px 0;
   border-bottom: 1px solid #eee;
 }
 
@@ -91,6 +91,43 @@ button {
   color: #ff6b6b;
   cursor: pointer;
   margin-left: 10px;
+  font-size: 16px;
+}
+
+/* =======================================
+   ✅ 手机端：左右变上下 + 放大
+======================================= */
+@media screen and (max-width: 768px) {
+
+  body {
+    padding: 12px;
+  }
+
+  .main-layout {
+    grid-template-columns: 1fr; /* ✅ 上下布局 */
+  }
+
+  h2 {
+    font-size: 22px;
+  }
+
+  input,
+  button {
+    font-size: 18px;
+    padding: 14px;
+  }
+
+  .card {
+    padding: 18px 14px;
+  }
+
+  .item-price {
+    font-size: 15px;
+  }
+
+  .delete {
+    font-size: 18px;
+  }
 }
 </style>
 </head>
@@ -99,7 +136,7 @@ button {
 
 <div class="container">
 
-  <!-- ===== ✅ 左右两栏容器 ===== -->
+  <!-- ===== 左右两栏容器 ===== -->
   <div class="main-layout">
 
     <!-- 左：菜价系统 -->
@@ -259,7 +296,7 @@ async function deleteShop(id) {
   loadShop();
 }
 
-/* ================= 自动清理 ================= */
+/* ================= 自动清理（仅购物清单） ================= */
 (async () => {
   await db
     .from("shopping_list")
