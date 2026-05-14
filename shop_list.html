@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>买菜系统 + 购物清单</title>
+
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+body {
+  font-family: "Microsoft YaHei", sans-serif;
+  background: #f5f7fa;
+  padding: 20px;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+
+.card {
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  margin-bottom: 25px;
+}
+
+h2 {
+  border-left: 5px solid #4da3ff;
+  padding-left: 10px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 15px;
+  background: #4da3ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.result {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f1f5fb;
+  border-radius: 8px;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.delete {
+  color: #ff6b6b;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- ===== 菜价系统 ===== -->
+  <div class="card">
+    <h2>🥬 菜价计算</h2>
+
+    <input id="searchName" placeholder="菜名">
+    <button onclick="searchItem()">🔍 搜索菜名</button>
+
+    <input id="inputPrice" type="number" placeholder="图片价格（元/kg）">
+    <button onclick="saveItem()">💾 保存并查看价格</button>
+
+    <div id="calcResult" class="result"></div>
+  </div>
+
+  <!-- ===== 购物清单 ===== -->
+  <div class="card">
+    <h2>🛒 购物清单</h2>
+
+    <input id="shopInput" placeholder="想买什么？">
+    <button onclick="addShop()">添加</button>
+
+    <div id="shopList"></div>
+  </div>
+
+</div>
+
+<script>
+/* ================= ✅ 全局 Supabase ================= */
+const { createClient } = supabase;
+const db = createClient(
+  "https://dpytpfmxsaepftvixuks.supabase.co",
+  "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"
+);
+
+/* ================= 菜价计算 ================= */
+function calcRange(input) {
+  return {
+    low: (input / 2) * 1.3,
+    high: (input / 2) * 2.0
+  };
+}
+
+/* ================= 搜索菜名 ================= */
+async function searchItem() {
+  const name = document.getElementById("searchName").value.trim();
+  const box = document.getElementById("calcResult");
+
+  if (!name) {
+    box.innerText = "请输入菜名";
+    return;
+  }
+
+  const { data } = await db
+    .from("grocery_items")
+    .select("*")
+    .ilike("name", `%${name}%`)
+    .limit(1);
+
+  if (!data.length) {
+    box.innerText = "❌ 未找到该菜价";
+    return;
+  }
+
+  const i = data[0];
+  box.innerHTML = `
+    ✅ ${i.name}<br>
+    输入价：${i.input_value} 元/kg<br>
+    输出价：${i.low_price.toFixed(2)} ~ ${i.high_price.toFixed(2)} 元/斤
+  `;
+}
+
+/* ================= 保存菜价 ================= */
+async function saveItem() {
+  const name = document.getElementById("searchName").value.trim();
+  const price = parseFloat(document.getElementById("inputPrice").value);
+  const box = document.getElementById("calcResult");
+
+  if (!name || isNaN(price)) {
+    box.innerText = "请填写完整信息";
+    return;
+  }
+
+  const { low, high } = calcRange(price);
+
+  await db.from("grocery_items").insert({
+    name,
+    input_value: price,
+    low_price: low,
+    high_price: high
+  });
+
+  box.innerHTML = `
+    ✅ 已保存<br>
+    ${name}：${low.toFixed(2)} ~ ${high.toFixed(2)} 元/斤
+  `;
+
+  document.getElementById("inputPrice").value = "";
+}
+
+/* ================= 购物清单 ================= */
+async function addShop() {
+  const input = document.getElementById("shopInput");
+  const content = input.value.trim();
+  if (!content) return;
+
+  await db.from("shopping_list").insert({ content });
+  input.value = "";
+  loadShop();
+}
+
+async function loadShop() {
+  const { data } = await db
+    .from("shopping_list")
+    .select("*")
+    .eq("created_at", new Date().toISOString().slice(0,10));
+
+  const list = document.getElementById("shopList");
+  list.innerHTML = "";
+
+  data?.forEach(i => {
+    list.innerHTML += `
+      <div class="list-item">
+        ${i.content}
+        <span class="delete" onclick="deleteShop('${i.id}')">🗑</span>
+      </div>
+    `;
+  });
+}
+
+async function deleteShop(id) {
+  await db.from("shopping_list").delete().eq("id", id);
+  loadShop();
+}
+
+/* ================= 自动清理（仅购物清单） ================= */
+(async () => {
+  await db
+    .from("shopping_list")
+    .delete()
+    .neq("created_at", new Date().toISOString().slice(0,10));
+
+  loadShop();
+})();
+</script>
+
+</body>
+</html>
