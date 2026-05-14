@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>买菜系统 + 购物清单</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>买菜系统（大字版）</title>
 
 <!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,7 +13,7 @@
 body {
   font-family: "Microsoft YaHei", sans-serif;
   background: #f5f7fa;
-  padding: 20px;
+  padding: 15px;
   margin: 0;
 }
 
@@ -21,7 +22,7 @@ body {
   margin: auto;
 }
 
-/* ===== 桌面端：左右两栏 ===== */
+/* ===== 默认：桌面端左右两栏 ===== */
 .main-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -38,13 +39,13 @@ body {
 h2 {
   border-left: 5px solid #4da3ff;
   padding-left: 10px;
-  font-size: 20px;
+  font-size: 22px;
   margin-top: 0;
 }
 
 input {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   margin-top: 10px;
   font-size: 16px;
   box-sizing: border-box;
@@ -52,7 +53,7 @@ input {
 
 button {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   margin-top: 15px;
   background: #4da3ff;
   color: white;
@@ -82,7 +83,7 @@ button {
 }
 
 .item-price {
-  font-size: 13px;
+  font-size: 14px;
   color: #2ecc71;
   margin-top: 4px;
 }
@@ -97,44 +98,45 @@ button {
 /* ================= 模式切换按钮 ================= */
 #modeToggle {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: 10px;
+  right: 10px;
   background: #333;
   color: white;
   padding: 8px 12px;
   border-radius: 20px;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   z-index: 9999;
 }
 
-/* ===== 强制手机模式 ===== */
-body.mobile-mode .main-layout {
+/* ======================================================
+   ✅✅✅ 强制手机模式（无视浏览器设置）✅✅✅
+====================================================== */
+body.force-mobile .main-layout {
   grid-template-columns: 1fr !important;
 }
 
-body.mobile-mode input,
-body.mobile-mode button {
-  font-size: 18px !important;
-  padding: 14px !important;
+body.force-mobile h2 {
+  font-size: 28px;
 }
 
-body.mobile-mode .card {
-  padding: 18px 14px !important;
+body.force-mobile input,
+body.force-mobile button {
+  font-size: 24px !important;
+  padding: 20px !important;
 }
 
-/* ===== 强制桌面模式 ===== */
-body.desktop-mode .main-layout {
-  grid-template-columns: 1fr 1fr !important;
+body.force-mobile .card {
+  padding: 25px 18px !important;
 }
 
-/* =======================================
-   ✅ 手机端兜底（防止浏览器不识别）
-======================================= */
-@media screen and (max-width: 768px) {
-  body:not(.desktop-mode) .main-layout {
-    grid-template-columns: 1fr;
-  }
+body.force-mobile .item-price {
+  font-size: 20px !important;
+  margin-top: 8px;
+}
+
+body.force-mobile .delete {
+  font-size: 26px;
 }
 </style>
 </head>
@@ -316,17 +318,18 @@ async function deleteShop(id) {
   loadShop();
 })();
 
-/* ================= 模式切换 ================= */
+/* ================= 强制布局检测 ================= */
 const modeBtn = document.getElementById("modeToggle");
+const width = window.innerWidth;
 
 function applyMode(mode) {
-  document.body.classList.remove("mobile-mode", "desktop-mode");
-  document.body.classList.add(mode + "-mode");
-
-  modeBtn.innerText = mode === "mobile"
-    ? "📱 手机模式"
-    : "🖥️ 桌面模式";
-
+  if (mode === "mobile" || width <= 768) {
+    document.body.classList.add("force-mobile");
+    modeBtn.innerText = "📱 手机模式";
+  } else {
+    document.body.classList.remove("force-mobile");
+    modeBtn.innerText = "🖥️ 桌面模式";
+  }
   localStorage.setItem("layoutMode", mode);
 }
 
@@ -335,10 +338,13 @@ function toggleMode() {
   applyMode(current === "desktop" ? "mobile" : "desktop");
 }
 
+/* ===== 页面加载时强制执行 ===== */
 window.addEventListener("load", () => {
   const saved = localStorage.getItem("layoutMode");
   if (saved) {
     applyMode(saved);
+  } else {
+    applyMode(width <= 768 ? "mobile" : "desktop");
   }
 });
 </script>
