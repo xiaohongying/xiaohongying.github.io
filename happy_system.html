@@ -109,11 +109,9 @@ button {
   font-weight: bold;
 }
 
-/* ================= 移动端适配 (新增) ================= */
+/* ================= 移动端适配 ================= */
 @media screen and (max-width: 600px) {
-  body {
-    font-size: 16px;
-  }
+  body { font-size: 16px; }
 
   .dashboard {
     grid-template-columns: 1fr;
@@ -246,8 +244,8 @@ button {
 /* ================= Supabase 初始化 ================= */
 const { createClient } = supabase;
 const db = createClient(
-  "https://dpytpfmxsaepftvixuks.supabase.co",   // ← 替换
-  "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"    // ← 替换
+  "https://dpytpfmxsaepftvixuks.supabase.co",
+  "sb_publishable_kleb3hNkq8W3cCU5XYxGMQ_ZWyYLb76"
 );
 
 /* ================= 基础工具 ================= */
@@ -286,21 +284,23 @@ async function loadActions() {
   return result;
 }
 
-/* ================= 微行动记录 ================= */
-async function loadRecords() {
-  const { data } = await db.from("action_records").select("*");
+/* ================= ✅ 修复点：只加载今天的记录 ================= */
+async function loadTodayRecords() {
+  const today = getTodayKey();
+  const { data } = await db
+    .from("action_records")
+    .select("*")
+    .eq("date", today);
+
   const map = {};
-  data?.forEach(r => {
-    if (!map[r.action_name]) map[r.action_name] = { days: [], time: r.time, note: r.note };
-    map[r.action_name].days.push(r.date);
-  });
+  data?.forEach(r => map[r.action_name] = { time: r.time, note: r.note });
   return map;
 }
 
 /* ================= 微行动卡片 ================= */
 async function renderCards() {
   const actions = await loadActions();
-  const records = await loadRecords();
+  const todayRecs = await loadTodayRecords();
   const today = getTodayKey();
 
   const { data: tg } = await db.from("trip_goals").select("*");
@@ -314,8 +314,8 @@ async function renderCards() {
     </h3>`;
 
     actions[cat].forEach(name => {
-      const rec = records[name] || { days: [] };
-      const checked = rec.days.includes(today);
+      const rec = todayRecs[name];
+      const checked = !!rec;
       const isTodayGoal = todayGoals.some(g => g.name === name);
 
       c.innerHTML += `
@@ -325,13 +325,13 @@ async function renderCards() {
               onchange="toggle('${name}')">
             <span class="${isTodayGoal ? 'today-highlight' : ''}">${name}</span>
           </label>
-          <input type="time" value="${rec.time||''}"
+          <input type="time" value="${rec?.time||''}"
             onchange="setTime('${name}',this.value)">
           <div style="margin-top:6px;">
             <span class="delete-btn" onclick="editNote('${name}')">📝</span>
             <span class="delete-btn" onclick="deleteAction('${name}','${cat}')">🗑</span>
           </div>
-          ${rec.note ? `<div style="font-size:13px;color:#666;">📌 ${rec.note}</div>` : ""}
+          ${rec?.note ? `<div style="font-size:13px;color:#666;">📌 ${rec.note}</div>` : ""}
         </div>
       `;
     });
@@ -358,18 +358,24 @@ async function deleteAction(name, cat) {
 
 async function toggle(name) {
   const today = getTodayKey();
-  const records = await loadRecords();
-  const rec = records[name];
+  const rec = await db
+    .from("action_records")
+    .select("id")
+    .eq("action_name", name)
+    .eq("date", today)
+    .single();
 
-  if (rec?.days.includes(today)) {
-    await db.from("action_records").delete()
+  if (rec.data) {
+    await db.from("action_records")
+      .delete()
       .eq("action_name", name)
       .eq("date", today);
   } else {
-    await db.from("action_records").upsert(
-      { action_name: name, date: today, time: new Date().toTimeString().slice(0,5) },
-      { onConflict: ["action_name","date"] }
-    );
+    await db.from("action_records").insert({
+      action_name: name,
+      date: today,
+      time: new Date().toTimeString().slice(0,5)
+    });
   }
   renderCards();
   renderHappiness();
@@ -395,27 +401,25 @@ async function editNote(name) {
 
 /* ================= 今日反馈 ================= */
 async function updateFeedback() {
-  const fb = document.getElementById("feedback");
   const today = getTodayKey();
-  const records = await loadRecords();
+  const todayRecs = await loadTodayRecords();
 
-  let html = "";
-  Object.keys(records).forEach(name => {
-    if (records[name].days.includes(today)) html += `<p>✔ ${name}</p>`;
-  });
-  fb.innerHTML = html || "<p>暂无今日打卡</p>";
+  const fb = document.getElementById("feedback");
+  fb.innerHTML = Object.keys(todayRecs).length
+    ? Object.keys(todayRecs).map(n => `<p>✔ ${n}</p>`).join("")
+    : "<p>暂无今日打卡</p>";
 }
 
 /* ================= 幸福指数 ================= */
 async function renderHappiness() {
   const today = getTodayKey();
   const week = getWeekDates();
-  const records = await loadRecords();
+  const { data } = await db.from("action_records").select("*");
 
   let daily = 0, weekly = 0;
-  Object.values(records).forEach(rec => {
-    if (rec.days.includes(today)) daily++;
-    week.forEach(d => { if (rec.days.includes(d)) weekly++; });
+  data?.forEach(r => {
+    if (r.date === today) daily++;
+    if (week.includes(r.date)) weekly++;
   });
 
   document.getElementById("dailyHappiness").innerText = daily + " 分";
@@ -449,7 +453,6 @@ async function renderTripGoals() {
   checkTripGoalReminder([...goals.near, ...goals.far]);
 }
 
-/* ================= 今日目标（严格绑定微行动） ================= */
 async function addTripGoal(type) {
   if (type === "today") {
     const actions = await loadActions();
@@ -477,20 +480,12 @@ async function deleteTripGoal(id) {
   renderCards();
 }
 
-/* ================= ✅ 正确的时间提醒逻辑 ================= */
 function checkTripGoalReminder(goals) {
   const today = getTodayKey();
-
   goals.forEach(g => {
     if (!g.start_date || !g.end_date) return;
-
-    if (g.start_date === today) {
-      alert(`🚀 目标开始：${g.name}`);
-    }
-
-    if (g.end_date === today) {
-      alert(`🏁 目标结束：${g.name}`);
-    }
+    if (g.start_date === today) alert(`🚀 目标开始：${g.name}`);
+    if (g.end_date === today) alert(`🏁 目标结束：${g.name}`);
   });
 }
 
